@@ -9,6 +9,10 @@ class Player(object):
             "stench" : False,
             "breeze": False,
         }
+        self.previous_move = [] # simulate a stack of moves
+        self.previous_position = (0,0)
+        self.is_visited = [(0,0)]
+        self.last_move_is_bump = False
 
     def move(self, board, direction):
         board.update_board(self.x, self.y, board.board_static[self.x][self.y])
