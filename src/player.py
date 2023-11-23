@@ -81,6 +81,8 @@ class Player(object):
                 if not info[2]:
                     if info[0] > 0:
                         self.unvisited_cells[info[1]].remove(pos)
+                    self.cell_parent[pos] = (self.x, self.y)
+                    self.cell_depth[pos] = self.cell_depth[(self.x, self.y)]+1
             else: # Tetangga belum ada dalam memori, tambahkan dalam tree
                 self.memory[pos] = (3, 0, False)
                 self.cell_parent[pos] = (self.x, self.y)
@@ -109,8 +111,8 @@ class Player(object):
             destination: tuple[int, int] = self.unvisited_cells[unvisited_cells_idx][0]
         else:
             raise Exception("Invalid search mode")
-        print()
-        print("destinasi", destination)
+        # print()
+        # print("destinasi", destination)
         
         if self.cell_parent[destination] == (self.x, self.y): # Bisa langsung menuju unvisited cell
             self.cell_should_be = destination
@@ -131,6 +133,38 @@ class Player(object):
             (self.x+1, self.y): "S",
             (self.x, self.y+1): "D",
         }[self.cell_should_be]
+    
+    def print_tree(self):
+        for pos in self.memory:
+            self.board_nbrows = max(self.board_nbrows, pos[0]+1)
+            self.board_nbcols = max(self.board_nbcols, pos[1]+1)
+        for i in range(self.board_nbrows):
+            for j in range(self.board_nbcols):
+                if i>0:
+                    if self.cell_parent.get((i,j), None) == (i-1,j):
+                        print("  |   ", end='')
+                    elif self.cell_parent.get((i-1,j), None) == (i,j):
+                        print("  |   ", end='')
+                    else:
+                        print("      ", end='')
+                else:
+                    print("      ", end='')
+            print()
+            for j in range(self.board_nbcols):
+                if j>0:
+                    if self.cell_parent.get((i,j), None) == (i,j-1):
+                        print('-', end='')
+                    elif self.cell_parent.get((i,j-1), None) == (i,j):
+                        print('-', end='')
+                    else:
+                        print(' ', end='')
+
+                if (i,j) in self.memory:
+                    print(' ' + str(i) + ',' + str(j) + ' ', end='')
+                else:
+                    print("     ", end='')
+            print()
+            
 
     def move(self, board, direction):
         board.update_board(self.x, self.y, board.board_static[self.x][self.y])
@@ -153,10 +187,12 @@ class Player(object):
         for wumpus in listWumpus:
             if self.x == wumpus.x and self.y == wumpus.y:
                 print("======================\nYou are eaten by Wumpus. You lose 😭")
+                self.print_tree()
                 return True
         for pit in listPit:
             if self.x == pit.x and self.y == pit.y:
                 print("======================\nYou fall into the pit. You lose 😭")
+                self.print_tree()
                 return True
         if self.x == gold.x and self.y == gold.y:
             print("======================\nCongratulations, you win 😄")
