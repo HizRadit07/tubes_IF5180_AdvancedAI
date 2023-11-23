@@ -1,3 +1,5 @@
+import heapq
+
 class Player(object):
     # Kelas Player ini boleh ditambahkan atribut/ method lain, tapi jangan menghapus/ mengubah kode yang sudah ada
     # You can add other attributes and/or methods to this Player class, but don't delete or change the existing code.
@@ -14,19 +16,121 @@ class Player(object):
 
         # Untuk board size, player dapat mengetahui dari apakah move dia sebelumnya menempatkan pada posisi yang sama atau tidak
         # Setelah tau informasi baru ini, player menempatkan pada board_nbrows atau board_nbcols
-        self.prev_move: str = ""
+        self.cell_should_be: tuple = (x, y)
+        self.move_str: str = ""
         self.board_nbrows: int = -1
         self.board_nbcols: int = -1
 
-        # Untuk keperluan DFS dan memori player akan potensi cell
-        self.memory: dict[tuple[int, int], int] = {(x, y): 0}
+        # Untuk keperluan Search dan memori player akan potensi cell
+        self.memory: dict[tuple[int, int], tuple[int, int, bool]] = {(x, y): (0, 0, False)}
+        # Nilai pertama dalam tuple berisi bitmask 4 nilai dengan detail:
         # 0 untuk safe cell
         # 1 untuk safe atau Wumpus cell
-        # 2 untuk safe atay Pit cell
+        # 2 untuk safe atau Pit cell
         # 3 untuk bisa safe, Wumpus, atau Pit cell
         # Perhatikan bahwa operasi bitwise or dapat dimanfaatkan disini
-        self.backtrack_stack: list[tuple[int, int]] = []
-        self.safe_unvisited_stack: list[tuple[int, int]] = []
+        # Nilai kedua bernilai confidence dari bitmask tersebut 
+        # (bernilai 1 hingga 4, tergantung banyaknya neighboring cell yang telah divisit)
+        # Nilai ketiga bernilai apakah cell ini telah dipijak atau belum
+
+        # Struktur tree
+        self.root_cell: tuple = (x, y)
+        self.cell_parent: dict[tuple[int, int], tuple[int, int]] = {(x, y): None}
+        self.cell_depth: dict[tuple[int, int], int] = {(x, y): 0}
+        self.unvisited_cells: list[list[tuple[int, int]]] = [[] for i in range(5)] 
+
+        self.mode: str = "DFS"
+        # self.mode: str = "BFS"
+    
+    # Metode baru
+    def check_current_cell(self):
+        if self.cell_should_be == (self.x, self.y):
+            return True
+        if self.cell_should_be[0] > self.x:
+            self.board_nbrows = self.cell_should_be[0]
+        else: # self.cell_should_be[1] > self.y
+            self.board_nbcols = self.cell_should_be[1]
+        self.memory.pop(self.cell_should_be, "")
+        self.cell_parent.pop(self.cell_should_be, "")
+        self.cell_depth.pop(self.cell_should_be, "")
+        return False
+
+    def update_near_cells(self):
+        if self.memory[(self.x, self.y)][2]: # Sudah diexpand sebelumnya
+            return
+        # Belum diexpand sebelumnya
+        to_apply = 0
+        if self.percept["stench"]:
+            to_apply += 1
+        if self.percept["breeze"]:
+            to_apply += 2
+        # Mengumpulkan semua koordinat tetangga yang akan diupdate nilainya
+        updated_coordinates: list[tuple[int, int]] = []
+        if self.x > 0:
+            updated_coordinates.append((self.x-1, self.y))
+        if self.y > 0:
+            updated_coordinates.append((self.x, self.y-1))
+        if self.board_nbrows < 0 or self.x < self.board_nbrows - 1:
+            updated_coordinates.append((self.x+1, self.y))
+        if self.board_nbcols < 0 or self.y < self.board_nbcols - 1:
+            updated_coordinates.append((self.x, self.y+1))
+        for pos in updated_coordinates: # Iterasi untuk semua tetangga
+            if pos in self.memory:
+                # Jika tetangga belum pernah diexpand, hapus dari unvisited_cells
+                info: tuple[int, int, bool] = self.memory[pos]
+                if not info[2]:
+                    if info[0] > 0:
+                        self.unvisited_cells[info[1]].remove(pos)
+            else: # Tetangga belum ada dalam memori, tambahkan dalam tree
+                self.memory[pos] = (3, 0, False)
+                self.cell_parent[pos] = (self.x, self.y)
+                self.cell_depth[pos] = self.cell_depth[(self.x, self.y)]+1
+            # Update dan masukkan dalam unvisited_cells
+            new_memory: tuple[int, int, bool] = ((self.memory[pos][0] & to_apply), self.memory[pos][1] + 1, self.memory[pos][2])
+            if not new_memory[2]:
+                if new_memory[0] > 0:
+                    self.unvisited_cells[new_memory[1]].append(pos)
+                elif self.memory[pos][0] > 0:
+                    self.unvisited_cells[0].append(pos)
+            self.memory[pos] = new_memory
+        info: tuple[int, int, bool] = self.memory[(self.x, self.y)]
+        self.memory[(self.x, self.y)] = (info[0], info[1], True)
+
+    def determine_cell_to_move(self):
+        unvisited_cells_idx: int = 0
+        while unvisited_cells_idx < 5 and len(self.unvisited_cells[unvisited_cells_idx]) == 0:
+            unvisited_cells_idx += 1
+        if unvisited_cells_idx > 4:
+            raise Exception("No gold in board")
+        
+        if self.mode == "DFS": # Perlakukan unvisited_cells layaknya stack
+            destination: tuple[int, int] = self.unvisited_cells[unvisited_cells_idx][-1]
+        elif self.mode == "BFS": # Perlakukan unvisited_cells layaknya queue
+            destination: tuple[int, int] = self.unvisited_cells[unvisited_cells_idx][0]
+        else:
+            raise Exception("Invalid search mode")
+        print()
+        print("destinasi", destination)
+        
+        if self.cell_parent[destination] == (self.x, self.y): # Bisa langsung menuju unvisited cell
+            self.cell_should_be = destination
+            if self.mode == "DFS": # Perlakukan unvisited_cells layaknya stack
+                self.unvisited_cells[unvisited_cells_idx].pop()
+            elif self.mode == "BFS": # Perlakukan unvisited_cells layaknya queue
+                self.unvisited_cells[unvisited_cells_idx].pop(0)
+        else: # Cek apakah posisi sekarang merupakan ancestor dari destination
+            while self.cell_depth[destination] > self.cell_depth[(self.x, self.y)] + 1:
+                destination = self.cell_parent[destination]
+            if self.cell_parent[destination] == (self.x, self.y):
+                self.cell_should_be = destination
+            else:
+                self.cell_should_be = self.cell_parent[(self.x, self.y)]
+        self.move_str: dict[tuple[int, int], str] = {
+            (self.x-1, self.y): "W",
+            (self.x, self.y-1): "A",
+            (self.x+1, self.y): "S",
+            (self.x, self.y+1): "D",
+        }[self.cell_should_be]
 
     def move(self, board, direction):
         board.update_board(self.x, self.y, board.board_static[self.x][self.y])
