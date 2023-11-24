@@ -111,7 +111,6 @@ class Player(object):
             destination: tuple[int, int] = self.unvisited_cells[unvisited_cells_idx][0]
         else:
             raise Exception("Invalid search mode")
-        # print()
         # print("destinasi", destination)
         
         if self.cell_parent[destination] == (self.x, self.y): # Bisa langsung menuju unvisited cell
@@ -135,22 +134,26 @@ class Player(object):
         }[self.cell_should_be]
     
     def print_tree(self):
+        nbrows: int = 0
+        nbcols: int = 0
         for pos in self.memory:
-            self.board_nbrows = max(self.board_nbrows, pos[0]+1)
-            self.board_nbcols = max(self.board_nbcols, pos[1]+1)
-        for i in range(self.board_nbrows):
-            for j in range(self.board_nbcols):
+            nbrows = max(nbrows, pos[0])
+            nbcols = max(nbcols, pos[1])
+        digrows: int = len(str(nbrows))
+        digcols: int = len(str(nbcols))
+        for i in range(nbrows + 1):
+            for j in range(nbcols + 1):
                 if i>0:
                     if self.cell_parent.get((i,j), None) == (i-1,j):
-                        print("  |   ", end='')
+                        print(' '*(digrows+1) + '|' + ' '*(digcols+2), end='')
                     elif self.cell_parent.get((i-1,j), None) == (i,j):
-                        print("  |   ", end='')
+                        print(' '*(digrows+1) + '|' + ' '*(digcols+2), end='')
                     else:
-                        print("      ", end='')
+                        print(' '*(digrows + digcols + 4), end='')
                 else:
-                    print("      ", end='')
+                    print(' '*(digrows + digcols + 4), end='')
             print()
-            for j in range(self.board_nbcols):
+            for j in range(nbcols + 1):
                 if j>0:
                     if self.cell_parent.get((i,j), None) == (i,j-1):
                         print('-', end='')
@@ -160,9 +163,9 @@ class Player(object):
                         print(' ', end='')
 
                 if (i,j) in self.memory:
-                    print(' ' + str(i) + ',' + str(j) + ' ', end='')
+                    print(' '*(digrows - len(str(i)) + 1) + str(i) + ',' + str(j) + ' '*(digcols - len(str(j)) + 1), end='')
                 else:
-                    print("     ", end='')
+                    print(' '*(digrows + digcols + 3), end='')
             print()
             
 
@@ -196,6 +199,7 @@ class Player(object):
                 return True
         if self.x == gold.x and self.y == gold.y:
             print("======================\nCongratulations, you win 😄")
+            self.print_tree()
             return True
         return False
     
